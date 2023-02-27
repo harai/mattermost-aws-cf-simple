@@ -1,14 +1,47 @@
-import aws_cdk as cdk
-from constructs import Construct
+from troposphere import Parameter, constants
 
 
-def base_ami(scope: Construct) -> cdk.CfnParameter:
-  return cdk.CfnParameter(scope, 'BaseAmi', type='AWS::EC2::Image::Id')
+def network_group(pui, template):
+  return pui.group(
+      template, 'Network', [
+          {
+              'parameter': Parameter(
+                  'VpcCidrBlock',
+                  Description=(
+                      'The second octet of CIDR Block used for VPC, '
+                      'which is N in "10.N.0.0/16"'),
+                  Type=constants.NUMBER),
+              'label': 'VPC CIDR Block',
+          },
+          {
+              'parameter': Parameter(
+                  'Az',
+                  Description=('Availability Zone to use'),
+                  Type=constants.AVAILABILITY_ZONE_NAME),
+              'label': 'Availability Zone',
+          },
+      ])
 
 
-def key_pair(scope: Construct) -> cdk.CfnParameter:
-  return cdk.CfnParameter(scope, 'KeyPair', type='AWS::EC2::KeyPair::KeyName')
-
-
-def notification_email(scope: Construct) -> cdk.CfnParameter:
-  return cdk.CfnParameter(scope, 'NotificationEmail')
+def general_group(pui, template):
+  return pui.group(
+      template, 'General', [
+          {
+              'parameter': Parameter('BaseAmi', Type=constants.IMAGE_ID),
+              'label': 'Base AMI',
+          },
+          {
+              'parameter': Parameter('KeyPair', Type=constants.KEY_PAIR_NAME),
+              'label': 'Key Pair',
+          },
+          {
+              'parameter': Parameter(
+                  'NotificationEmail', Type=constants.STRING),
+              'label': 'Notification Email',
+          },
+          {
+              'parameter': Parameter(
+                  'MattermostVersion', Type=constants.STRING),
+              'label': 'Mattermost Version',
+          },
+      ])

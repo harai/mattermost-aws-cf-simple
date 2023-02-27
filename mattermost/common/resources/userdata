@@ -1,0 +1,15 @@
+#!/bin/bash -eux
+# ${LAUNCH_CONFIG_FINGERPRINT}
+yum -y update aws-cfn-bootstrap
+/opt/aws/bin/cfn-init -v \
+  --stack '${STACK_NAME}' \
+  --resource '${INI_RESOURCE}' \
+  --region '${REGION}'
+
+# cfn-signal fails when starting a new EC2 instance happens
+# outside of CloudFormation stack update.
+# Ignore the failure to keep all Systemd services healthy.
+/opt/aws/bin/cfn-signal -e "$?" \
+  --stack '${STACK_ID}' \
+  --resource '${SIG_RESOURCE}' \
+  --region '${REGION}' || true

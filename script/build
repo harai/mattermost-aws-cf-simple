@@ -1,0 +1,86 @@
+#!/bin/bash -eu
+
+# https://stackoverflow.com/a/23815646/1160341
+export SHELL="$(type -p bash)"
+
+generate_template () {
+  local -r region="$1"
+  shift
+  local -r name="$1"
+  shift
+
+  PYTHONPATH=. python "mattermost/$name/template.py" \
+    > "work/_mattermost.$name.json"
+
+  "$JQ" -c . < "work/_mattermost.$name.json" \
+    > "work/mattermost.$name.json"
+
+  aws --region "$region" cloudformation validate-template \
+    --template-body "$(cat "work/mattermost.$name.json")" > /dev/null
+}
+
+export -f generate_template
+
+AWS_MAX_ATTEMPTS=10
+AWS_RETRY_MODE=adaptive
+
+export AWS_MAX_ATTEMPTS
+export AWS_RETRY_MODE
+
+if [ "$(uname)" == 'Darwin' ]; then
+  cores="$(sysctl -n hw.physicalcpu)"
+else
+  cores="$(nproc)"
+fi
+
+serial () {
+  while true; do
+    if [ "$1" == ':::' ]; then
+      shift
+      break
+    fi
+    shift
+  done
+
+  for i in "$@"
+  do
+    bash -ceu "$i"
+  done
+}
+
+xargs_parallel () {
+  while true; do
+    if [ "$1" == ':::' ]; then
+      shift
+      break
+    fi
+    shift
+  done
+  printf '%s\n' "$@" | xargs -I{} -P 8 bash -ceu {}
+}
+
+if [ -z "${CI:-}" ]; then
+  run=parallel
+  JQ=jq
+else
+  run=xargs_parallel
+  JQ=work/cache/jq
+fi
+export JQ
+
+"$run" -j "$cores" ::: \
+  'generate_template ap-northeast-1 ami' \
+  'generate_template ap-northeast-1 dbvolume' \
+  'generate_template ap-northeast-1 configvolume' \
+  'generate_template ap-northeast-1 main' \
+  'generate_template us-east-1 nvirginia'
+
+script/increment-version
+
+if [ -z "${CI:-}" ]; then
+  echo ''
+  echo "$(tput setaf 2)Templates are generated.$(tput sgr0)"
+  echo ''
+else
+  echo 'Templates are generated.'
+fi

@@ -87,4 +87,4 @@ if __name__ == '__main__':
     if is_python(path):
       if beautify_with_autopep8_yapf_isort(path):
         continue
-    subprocess.run(['python', 'app.py'])
+    subprocess.run(['script/build'])

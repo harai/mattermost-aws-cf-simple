@@ -1,10 +1,20 @@
-from mattermost.common.template import Template
-from mattermost.nvirginia import s3
+from mattermost.common import cfstyle
+from mattermost.nvirginia import acm, output, parameter
 
 
-class NvirginiaTemplate(Template):
+def construct_template():
+  t, pui = cfstyle.template('Mattermost NVirginia')
 
-  name: str = 'Mattermost NVirginia'
+  [domain] = parameter.domain_group(pui, t)
 
-  def definition(self) -> None:
-    s3.my_bucket(self)
+  pui.output(t)
+
+  global_certificate = t.add_resource(acm.global_certificate(domain))
+
+  t.add_output(output.global_certificate_arn(global_certificate))
+
+  return t
+
+
+if __name__ == '__main__':
+  print(construct_template().to_json(indent=2))

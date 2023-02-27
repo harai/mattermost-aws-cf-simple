@@ -1,6 +1,5 @@
-from aws_cdk import aws_s3 as s3
-from constructs import Construct
+from troposphere import s3
 
 
-def my_bucket(scope: Construct) -> s3.CfnBucket:
-  return s3.CfnBucket(scope, 'MyBucket')
+def my_bucket():
+  return s3.Bucket('MyBucket')

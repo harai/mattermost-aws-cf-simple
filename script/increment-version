@@ -1,0 +1,9 @@
+#!/bin/bash -eu
+
+version="$(< mattermost/common/AUTO_VERSION)"
+
+a=( ${version//./ } )
+
+((a[2]++))
+
+printf "${a[0]}.${a[1]}.${a[2]}" > mattermost/common/AUTO_VERSION

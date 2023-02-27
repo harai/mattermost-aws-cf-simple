@@ -1,10 +1,16 @@
-from mattermost.common.template import Template
+from mattermost.common import cfstyle
 from mattermost.main import s3
 
 
-class MainTemplate(Template):
+def construct_template():
+  t, pui = cfstyle.template('Mattermost Main')
 
-  name: str = 'Mattermost Main'
+  pui.output(t)
 
-  def definition(self) -> None:
-    s3.my_bucket(self)
+  t.add_resource(s3.my_bucket())
+
+  return t
+
+
+if __name__ == '__main__':
+  print(construct_template().to_json(indent=2))

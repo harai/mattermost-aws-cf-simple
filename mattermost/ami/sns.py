@@ -1,14 +1,12 @@
-from aws_cdk import CfnParameter
-from aws_cdk.aws_sns import CfnTopic
-from constructs import Construct
+from troposphere import sns
+
+from mattermost.common import util
 
 
-def notification_topic(
-    scope: Construct, notification_email: CfnParameter) -> CfnTopic:
-  return CfnTopic(
-      scope,
+def notification_topic(notification_email):
+  return sns.Topic(
       'NotificationTopic',
-      subscription=[
-          CfnTopic.SubscriptionProperty(
-              endpoint=notification_email.value_as_string, protocol='email'),
+      Subscription=[
+          sns.Subscription(
+              Endpoint=util.read_param(notification_email), Protocol='email'),
       ])

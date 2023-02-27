@@ -1,6 +1,10 @@
-from aws_cdk import aws_s3 as s3
-from constructs import Construct
+from troposphere import s3
 
 
-def log_bucket(scope: Construct) -> s3.CfnBucket:
-  return s3.CfnBucket(scope, 'LogBucket')
+def log_bucket():
+  return s3.Bucket(
+      'LogBucket',
+      LifecycleConfiguration=s3.LifecycleConfiguration(
+          Rules=[
+              s3.LifecycleRule(ExpirationInDays=30, Status='Enabled'),
+          ]))

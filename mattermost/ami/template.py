@@ -1,26 +1,61 @@
-from mattermost.ami import iam, imagebuilder, parameter, s3, sns
-from mattermost.common.template import Template
+from mattermost.ami import iam, imagebuilder, parameter, s3, sns, vpc
+from mattermost.common import cfstyle
 
 
-class AmiTemplate(Template):
+def construct_template():
+  t, pui = cfstyle.template('Mattermost AMI')
 
-  name: str = 'Mattermost AMI'
+  [
+      vpc_cidr_block,
+      az,
+  ] = parameter.network_group(pui, t)
+  [
+      base_ami,
+      key_pair,
+      notification_email,
+      mattermost_version,
+  ] = parameter.general_group(pui, t)
+  pui.output(t)
 
-  def definition(self) -> None:
-    base_ami = parameter.base_ami(self)
-    key_pair = parameter.key_pair(self)
-    notification_email = parameter.notification_email(self)
+  # VPC
+  my_vpc = t.add_resource(vpc.my_vpc(vpc_cidr_block))
+  subnet = t.add_resource(vpc.subnet(my_vpc, vpc_cidr_block, az))
+  internet_gateway = t.add_resource(vpc.internet_gateway())
+  vpc_gateway_attachment = t.add_resource(
+      vpc.vpc_gateway_attachment(my_vpc, internet_gateway))
+  route_table = t.add_resource(vpc.route_table(my_vpc))
+  route_internet = t.add_resource(
+      vpc.route_internet(vpc_gateway_attachment, route_table, internet_gateway))
+  subnet_route_table_association = t.add_resource(
+      vpc.subnet_route_table_association(route_table, subnet))
+  ssh_security_group = t.add_resource(vpc.ssh_security_group(my_vpc))
 
-    log_bucket = s3.log_bucket(self)
-    notification_topic = sns.notification_topic(self, notification_email)
-    builder_instance_role = iam.builder_instance_role(self, log_bucket)
-    builder_instance_profile = iam.builder_instance_profile(
-        self, builder_instance_role)
-    infrastructure_configuration = imagebuilder.infrastructure_configuration(
-        self, builder_instance_profile, key_pair, log_bucket,
-        notification_topic)
+  log_bucket = t.add_resource(s3.log_bucket())
+  notification_topic = t.add_resource(
+      sns.notification_topic(notification_email))
+  builder_instance_role = t.add_resource(iam.builder_instance_role(log_bucket))
+  builder_instance_profile = t.add_resource(
+      iam.builder_instance_profile(builder_instance_role))
+  infrastructure_configuration = t.add_resource(
+      imagebuilder.infrastructure_configuration(
+          builder_instance_profile=builder_instance_profile,
+          key_pair=key_pair,
+          log_bucket=log_bucket,
+          notification_topic=notification_topic,
+          my_vpc=my_vpc,
+          subnet=subnet,
+          route_internet=route_internet,
+          subnet_route_table_association=subnet_route_table_association,
+          ssh_security_group=ssh_security_group))
 
-    component = imagebuilder.component(self)
-    image_recipe = imagebuilder.image_recipe(self, base_ami, component)
-    imagebuilder.image_pipeline(
-        self, image_recipe, infrastructure_configuration)
+  component = t.add_resource(imagebuilder.component())
+  image_recipe = t.add_resource(
+      imagebuilder.image_recipe(base_ami, component, mattermost_version))
+  t.add_resource(
+      imagebuilder.image_pipeline(image_recipe, infrastructure_configuration))
+
+  return t
+
+
+if __name__ == '__main__':
+  print(construct_template().to_json(indent=2))

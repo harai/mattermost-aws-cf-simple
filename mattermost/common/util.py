@@ -1,11 +1,130 @@
-import aws_cdk as cdk
+import hashlib
+import logging
+from datetime import datetime
+from itertools import chain
+from pprint import PrettyPrinter
+
+from troposphere import (
+    Base64,
+    GetAtt,
+    ImportValue,
+    Join,
+    Parameter,
+    Ref,
+    Region,
+    StackId,
+    StackName,
+    Sub,
+    certificatemanager,
+    ec2,
+    iam,
+    imagebuilder,
+    s3,
+    sns
+)
+
+log = logging.getLogger(__name__)
+pp = PrettyPrinter(indent=3)
 
 
-def from_file(path: str, params: dict[str, str] = {}) -> str:
-  with open(path) as f:
-    s = f.read()
+def command(c, cwd=None):
+  d = {'command': c}
+  if cwd is not None:
+    d['cwd'] = cwd
+  return d
 
-  if len(params) == 0:
-    return s
 
-  return cdk.Fn.sub(s, params)
+def userdata(ini_resource, sig_resource, fingerprint_dict):
+  fp_comments = list(
+      chain.from_iterable(
+          ['# {}: '.format(k), v, '\n']
+          for k, v in sorted(fingerprint_dict.items())))
+
+  return Base64(
+      Sub(
+          get_content('mattermost/common/resources/userdata'),
+          STACK_NAME=StackName,
+          STACK_ID=StackId,
+          REGION=Region,
+          INI_RESOURCE=ini_resource,
+          SIG_RESOURCE=sig_resource,
+          LAUNCH_CONFIG_FINGERPRINT=Join('', fp_comments)))
+
+
+def get_file(path):
+  with open(path, 'r') as f:
+    return f.read()
+
+
+def condition(template, name, cond):
+  template.add_condition(name, cond)
+  return name
+
+
+class Imp(object):
+
+  def __init__(self, stack_name_value):
+    self.stack_name_value = stack_name_value
+
+  def ort(self, name):
+    return ImportValue(
+        Sub('${stack}:${name}', stack=self.stack_name_value, name=name))
+
+  @classmethod
+  def from_ref(cls, stack_name):
+    return cls(Ref(stack_name))
+
+
+def get_content(path):
+  with open(path, 'r') as f:
+    return f.read()
+
+
+def sha1digest(data):
+  if isinstance(data, str):
+    data = bytes(data, 'utf-8')
+  return hashlib.sha1(data).hexdigest()
+
+
+def current_time():
+  return datetime.now().strftime('%Y%m%d%H%M%S')
+
+
+def lambda_log_name(function):
+  return Sub('/aws/lambda/${f}', f=Ref(function))
+
+
+resource_arns = {
+    certificatemanager.Certificate: lambda r: Ref(r),
+    imagebuilder.Component: lambda r: GetAtt(r, 'Arn'),
+    imagebuilder.ImageRecipe: lambda r: GetAtt(r, 'Arn'),
+    imagebuilder.InfrastructureConfiguration: lambda r: GetAtt(r, 'Arn'),
+    s3.Bucket: lambda r: GetAtt(r, 'Arn'),
+    sns.Topic: lambda r: Ref(r),
+}
+
+resource_names = {
+    ec2.InternetGateway: lambda r: Ref(r),
+    ec2.RouteTable: lambda r: Ref(r),
+    ec2.SecurityGroup: lambda r: Ref(r),
+    ec2.Subnet: lambda r: Ref(r),
+    ec2.Volume: lambda r: Ref(r),
+    ec2.VPC: lambda r: Ref(r),
+    iam.InstanceProfile: lambda r: Ref(r),
+    iam.Role: lambda r: Ref(r),
+    s3.Bucket: lambda r: Ref(r),
+}
+
+
+def arn_of(res):
+  return resource_arns[type(res)](res)
+
+
+def name_of(res):
+  return resource_names[type(res)](res)
+
+
+def read_param(res):
+  if isinstance(res, Parameter):
+    return Ref(res)
+  raise TypeError()
