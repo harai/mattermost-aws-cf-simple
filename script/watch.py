@@ -1,16 +1,10 @@
-import logging
 import re
 import subprocess
 import sys
-from pprint import PrettyPrinter
 
 import autopep8
 import isort
 from yapf.yapflib.yapf_api import FormatCode
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
-pp = PrettyPrinter(indent=3)
 
 python_re = re.compile(r'\.py$')
 vscode_temp_file_re = re.compile(r'\.py\.[0-9a-f]+\.py$')

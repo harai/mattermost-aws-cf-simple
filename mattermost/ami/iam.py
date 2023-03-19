@@ -3,7 +3,7 @@ from troposphere import Sub, iam
 from mattermost.common import util
 
 
-def builder_instance_role(log_bucket):
+def builder_instance_role(log_bucket, builder_log):
   return iam.Role(
       'BuilderInstanceRole',
       AssumeRolePolicyDocument={
@@ -31,6 +31,19 @@ def builder_instance_role(log_bucket):
                           'Effect': 'Allow',
                           'Action': 'imagebuilder:GetComponent',
                           'Resource': '*',
+                      },
+                      {
+                          'Effect': 'Allow',
+                          'Action': 'logs:CreateLogStream',
+                          'Resource': Sub(
+                              '${group}:*', group=util.arn_of(builder_log)),
+                      },
+                      {
+                          'Effect': 'Allow',
+                          'Action': 'logs:PutLogEvents',
+                          'Resource': Sub(
+                              '${group}:log-stream:*',
+                              group=util.arn_of(builder_log)),
                       },
                       {
                           'Effect': 'Allow',

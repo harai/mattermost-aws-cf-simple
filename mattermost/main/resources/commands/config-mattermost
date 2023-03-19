@@ -1,0 +1,31 @@
+#!/bin/bash -eux
+
+config=/var/opt/mattermost/config.json
+mysql_password=/var/opt/mattermost/mysql-password
+domain='${DOMAIN}'
+
+config_set () {
+  local -r key="$1"
+  local -r value="$2"
+
+  sudo -u mm /opt/mattermost/bin/mmctl --config "$config" config set "$key" "$value"
+}
+
+if [ ! -f "$config" ]; then
+  cp /opt/mattermost/config/config.json "$config"
+fi
+
+chown mm: "$config"
+
+config_set SqlSettings.DriverName mysql
+# Never output password to log
+set +x
+config_set SqlSettings.DataSource "mm:$(< "$mysql_password")@unix(/var/run/mysqld/mysqld.sock)/mm?charset=utf8mb4,utf8"
+set -x
+
+config_set ServiceSettings.SiteURL "https://$domain"
+config_set ServiceSettings.ListenAddress :443
+config_set ServiceSettings.ConnectionSecurity TLS
+config_set ServiceSettings.UseLetsEncrypt true
+config_set ServiceSettings.LetsEncryptCertificateCacheFile /var/opt/mattermost/cert/letsencrypt.cache
+config_set ServiceSettings.Forward80To443 true

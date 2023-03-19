@@ -1,17 +1,11 @@
-import logging
-from pprint import PrettyPrinter
-
-from troposphere import Sub, ec2
+from troposphere import FindInMap, Region, Sub, ec2
 
 from mattermost.common import util
-
-log = logging.getLogger(__name__)
-pp = PrettyPrinter(indent=3)
 
 
 def my_vpc(vpc_cidr_block):
   return ec2.VPC(
-      'Vpc',
+      'MyVpc',
       CidrBlock=Sub(
           '10.${block}.0.0/16', block=util.read_param(vpc_cidr_block)),
       EnableDnsHostnames=True,
@@ -67,10 +61,40 @@ def subnet_route_table_association(route_table, subnet):
 def ssh_security_group(my_vpc):
   return ec2.SecurityGroup(
       'SshSecurityGroup',
-      GroupDescription='Allow SSH',
+      GroupDescription='SSH',
       SecurityGroupEgress=[],
       SecurityGroupIngress=[
           ec2.SecurityGroupRule(
               IpProtocol='tcp', FromPort=22, ToPort=22, CidrIp='0.0.0.0/0'),
+      ],
+      VpcId=util.name_of(my_vpc))
+
+
+def cloudfront_security_group(my_vpc):
+  return ec2.SecurityGroup(
+      'CloudfrontSecurityGroup',
+      GroupDescription='CloudFront IP address range',
+      SecurityGroupEgress=[],
+      SecurityGroupIngress=[
+          ec2.SecurityGroupRule(
+              SourcePrefixListId=FindInMap(
+                  'RegionMap', Region, 'CloudfrontPrefixList'),
+              FromPort=443,
+              IpProtocol='tcp',
+              ToPort=443),
+      ],
+      VpcId=util.name_of(my_vpc))
+
+
+def web_security_group(my_vpc):
+  return ec2.SecurityGroup(
+      'WebSecurityGroup',
+      GroupDescription='HTTP/HTTPS requests',
+      SecurityGroupEgress=[],
+      SecurityGroupIngress=[
+          ec2.SecurityGroupRule(
+              CidrIp='0.0.0.0/0', FromPort=443, IpProtocol='tcp', ToPort=443),
+          ec2.SecurityGroupRule(
+              CidrIp='0.0.0.0/0', FromPort=80, IpProtocol='tcp', ToPort=80),
       ],
       VpcId=util.name_of(my_vpc))

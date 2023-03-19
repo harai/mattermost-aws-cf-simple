@@ -9,4 +9,4 @@ def export(name):
 
 def volume(volume):
   return Output(
-      'DataVolume', Value=util.name_of(volume), Export=export('DataVolume'))
+      'ConfigVolume', Value=util.name_of(volume), Export=export('ConfigVolume'))

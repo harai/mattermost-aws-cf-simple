@@ -1,0 +1,9 @@
+DEVICE_ROOT = '/dev/nvme0n1p1'
+DEVICE_ROOT_SIZE = 8
+DEVICE_ROOT_XVD = '/dev/xvda'
+DEVICE_SWAP = '/dev/nvme1n1'
+DEVICE_SWAP_XVD = '/dev/xvdf'
+DEVICE_CONFIG = '/dev/nvme2n1'
+DEVICE_CONFIG_XVD = '/dev/xvdg'
+DEVICE_DB = '/dev/nvme3n1'
+DEVICE_DB_XVD = '/dev/xvdh'

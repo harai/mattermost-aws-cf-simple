@@ -1,13 +1,113 @@
 from mattermost.common import cfstyle
-from mattermost.main import s3
+from mattermost.common.util import Imp
+from mattermost.main import (
+    autoscale,
+    awslog,
+    ec2,
+    iam,
+    mapping,
+    parameter,
+    sns
+)
 
 
 def construct_template():
   t, pui = cfstyle.template('Mattermost Main')
 
+  [
+      vpc_cidr_block,
+      az,
+  ] = parameter.network_group(pui, t)
+  [
+      domain,
+      ami,
+      key_pair,
+      notification_email,
+      instance_type,
+      instance_fingerprint,
+  ] = parameter.general_group(pui, t)
+  [
+      config_volume_stack,
+      db_volume_stack,
+  ] = parameter.volume_group(pui, t)
   pui.output(t)
 
-  t.add_resource(s3.my_bucket())
+  config_volume_imp = Imp.from_ref(config_volume_stack)
+  config_volume_value = config_volume_imp.ort('ConfigVolume')
+
+  db_volume_imp = Imp.from_ref(db_volume_stack)
+  db_volume_value = db_volume_imp.ort('DbVolume')
+
+  t.add_mapping('RegionMap', mapping.region_map())
+
+  # VPC
+  my_vpc = t.add_resource(ec2.my_vpc(vpc_cidr_block))
+  subnet = t.add_resource(ec2.subnet(my_vpc, vpc_cidr_block, az))
+  internet_gateway = t.add_resource(ec2.internet_gateway())
+  vpc_gateway_attachment = t.add_resource(
+      ec2.vpc_gateway_attachment(my_vpc, internet_gateway))
+  route_table = t.add_resource(ec2.route_table(my_vpc))
+  route_internet = t.add_resource(
+      ec2.route_internet(
+          vpc_gateway_attachment=vpc_gateway_attachment,
+          route_table=route_table,
+          internet_gateway=internet_gateway))
+  subnet_route_table_association = t.add_resource(
+      ec2.subnet_route_table_association(route_table, subnet))
+  ssh_security_group = t.add_resource(ec2.ssh_security_group(my_vpc))
+  web_security_group = t.add_resource(ec2.web_security_group(my_vpc))
+
+  cfninit_log = t.add_resource(awslog.cfninit_log())
+  mattermost_log = t.add_resource(awslog.mattermost_log())
+  mysql_error_log = t.add_resource(awslog.mysql_error_log())
+
+  eip = t.add_resource(ec2.eip(my_vpc))
+
+  ec2_instance_role = t.add_resource(
+      iam.ec2_instance_role(
+          cfninit_log=cfninit_log,
+          mattermost_log=mattermost_log,
+          mysql_error_log=mysql_error_log,
+          eip=eip))
+  instance_profile = t.add_resource(iam.instance_profile(ec2_instance_role))
+  ebs_attach_policy = t.add_resource(
+      iam.ebs_attach_policy(
+          ec2_instance_role=ec2_instance_role,
+          instance_profile=instance_profile,
+          config_volume_value=config_volume_value,
+          db_volume_value=db_volume_value))
+
+  notification_topic = t.add_resource(
+      sns.notification_topic(notification_email))
+
+  launch_template = t.add_resource(
+      ec2.launch_template(
+          my_vpc=my_vpc,
+          key_pair=key_pair,
+          ami=ami,
+          instance_profile=instance_profile,
+          instance_type=instance_type,
+          ssh_security_group=ssh_security_group,
+          web_security_group=web_security_group,
+          instance_fingerprint=instance_fingerprint,
+          cfninit_log=cfninit_log,
+          mattermost_log=mattermost_log,
+          mysql_error_log=mysql_error_log,
+          config_volume_value=config_volume_value,
+          db_volume_value=db_volume_value,
+          eip=eip,
+          domain=domain,
+          ebs_attach_policy=ebs_attach_policy))
+
+  auto_scaling_group = t.add_resource(
+      autoscale.auto_scaling_group(
+          route_internet=route_internet,
+          subnet_route_table_association=subnet_route_table_association,
+          az=az,
+          subnet=subnet,
+          eip=eip,
+          launch_template=launch_template,
+          notification_topic=notification_topic))
 
   return t
 

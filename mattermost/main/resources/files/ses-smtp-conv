@@ -1,0 +1,23 @@
+#!/bin/bash -eu
+
+key="$1"
+region='${AWS::Region}'
+
+file="$(mktemp)"
+file2="$(mktemp)"
+file3="$(mktemp)"
+file4="$(mktemp)"
+file5="$(mktemp)"
+trap "rm -f $file $file2 $file3 $file4 $file5" EXIT
+
+echo -n '11111111' | openssl dgst -sha256 -hmac "AWS4$key" -binary > "$file"
+echo -n "$region" | \
+    openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(xxd -ps -c32 "$file")" -binary > "$file2"
+echo -n 'ses' | \
+    openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(xxd -ps -c32 "$file2")" -binary > "$file3"
+echo -n 'aws4_request' | \
+    openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(xxd -ps -c32 "$file3")" -binary > "$file4"
+echo -n 'SendRawEmail' | \
+    openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(xxd -ps -c32 "$file4")" -binary > "$file5"
+
+cat <(printf '\004') "$file5" | base64

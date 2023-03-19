@@ -1,0 +1,7 @@
+/var/log/cwagent.log {
+    daily
+    rotate 1
+    missingok
+    notifempty
+    copytruncate
+}

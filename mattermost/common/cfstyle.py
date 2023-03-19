@@ -1,12 +1,7 @@
-import logging
 import os
 import subprocess
-from pprint import PrettyPrinter
 
 from troposphere import Join, Output, Parameter, Ref, Template, constants
-
-log = logging.getLogger(__name__)
-pp = PrettyPrinter(indent=3)
 
 
 class ParamUi(object):

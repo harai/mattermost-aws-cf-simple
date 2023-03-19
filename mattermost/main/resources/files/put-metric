@@ -1,0 +1,68 @@
+#!/bin/bash -eux
+
+region='${AWS::Region}'
+stack='${AWS::StackName}'
+
+root_device='${ROOT_DEVICE}'
+db_device='${DB_DEVICE}'
+config_device='${CONFIG_DEVICE}'
+domain='${DOMAIN}'
+
+imds_token="$(curl -sSL -f --retry 3 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")"
+instance_id="$(curl -sSL -f --retry 3 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/instance-id)"
+
+calc() {
+  # bash - How do I get bc(1) to print the leading zero? - Stack Overflow
+  # http://stackoverflow.com/questions/8402181/how-do-i-get-bc1-to-print-the-leading-zero
+  #
+  # Negative results are not supported.
+  echo "scale=4; x=$1; if(0<x && x<1) print 0; x" | bc
+}
+
+metric() {
+  echo "MetricName=$1,Dimensions=[{Name=InstanceId,Value=$instance_id}],Value=$2,Unit=$3"
+}
+
+stack_metric() {
+  echo "MetricName=$1,Dimensions=[{Name=Stack,Value=$stack}],Value=$2,Unit=$3"
+}
+
+process_cpu() {
+  local -r pid_path="$1"
+  local -r num_of_cores="$2"
+
+  if [ -e "$pid_path" ]; then
+    calc "$(ps --no-headers -p "$(< "$pid_path")" -o %cpu | awk '{print $1}') / $num_of_cores"
+  else
+    echo 'false'
+  fi
+}
+
+num_of_cores="$(nproc)"
+psi_memory="$(awk '$1=="full"' < /proc/pressure/memory | tr ' ' '\n' | grep ^avg60= | cut -d'=' -f2)"
+
+metrics=()
+metrics+=("$(stack_metric PSIMemory "$psi_memory" Percent)")
+
+db_pid_name="$(hostname | cut -d. -f1)"
+db_cpu="$(process_cpu "/var/lib/mysql/data/$db_pid_name.pid" "$num_of_cores")"
+if [ "$db_cpu" != 'false' ]; then
+  metrics+=("$(stack_metric DBCPUUtilization "$db_cpu" Percent)")
+fi
+
+db_disk_usage="$(df -h | awk -v d="$db_device" '($1==d){print $5+0}')"
+metrics+=("$(stack_metric DBDiskUsage "$db_disk_usage" Percent)")
+
+config_disk_usage="$(df -h | awk -v d="$config_device" '($1==d){print $5+0}')"
+metrics+=("$(stack_metric ConfigDiskUsage "$config_disk_usage" Percent)")
+
+web_health="$(curl -i -f -H "Authorization: Bearer $(< /var/mattermost/ping-token)" "https://$domain/api/v4/ping" | head -1)"
+if [[ "$web_health" == *'200'* ]]; then
+  metrics+=("$(stack_metric HealthyHostCount 1 Count)")
+else
+  metrics+=("$(stack_metric HealthyHostCount 0 Count)")
+fi
+
+/usr/bin/aws --region "$region" cloudwatch put-metric-data \
+  --namespace "$stack" \
+  --metric-data "${!metrics[@]}"

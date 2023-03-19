@@ -35,18 +35,24 @@ phases:
         skip_if_unavailable=False
 
       overwrite: false
+  - name: AddMySQLUser
+    action: ExecuteBash
+    inputs:
+      commands:
+      - groupadd -g 889 mysql
+      - useradd -d /var/lib/mysql -c 'MySQL server' -u 889 -g 889 -M mysql
+  - name: AddMattermostUser
+    action: ExecuteBash
+    inputs:
+      commands:
+      - groupadd -g 888 mm
+      - useradd -u 888 -g 888 -c 'Mattermost server' --system mm
   - name: InstallPackages
     action: ExecuteBash
     inputs:
       commands:
       - dnf install --nogpgcheck -y community-mysql-server
-      - dnf install -y mlocate jq
-  - name: AddUser
-    action: ExecuteBash
-    inputs:
-      commands:
-      - groupadd -g 888 mm
-      - useradd -u 888 -g 888 --system mm
+      - dnf install -y amazon-cloudwatch-agent mlocate
   - name: DownloadMattermost
     action: WebDownload
     inputs:

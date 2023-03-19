@@ -1,4 +1,4 @@
-from mattermost.ami import iam, imagebuilder, parameter, s3, sns, vpc
+from mattermost.ami import awslog, ec2, iam, imagebuilder, parameter, s3, sns
 from mattermost.common import cfstyle
 
 
@@ -18,22 +18,24 @@ def construct_template():
   pui.output(t)
 
   # VPC
-  my_vpc = t.add_resource(vpc.my_vpc(vpc_cidr_block))
-  subnet = t.add_resource(vpc.subnet(my_vpc, vpc_cidr_block, az))
-  internet_gateway = t.add_resource(vpc.internet_gateway())
+  my_vpc = t.add_resource(ec2.my_vpc(vpc_cidr_block))
+  subnet = t.add_resource(ec2.subnet(my_vpc, vpc_cidr_block, az))
+  internet_gateway = t.add_resource(ec2.internet_gateway())
   vpc_gateway_attachment = t.add_resource(
-      vpc.vpc_gateway_attachment(my_vpc, internet_gateway))
-  route_table = t.add_resource(vpc.route_table(my_vpc))
+      ec2.vpc_gateway_attachment(my_vpc, internet_gateway))
+  route_table = t.add_resource(ec2.route_table(my_vpc))
   route_internet = t.add_resource(
-      vpc.route_internet(vpc_gateway_attachment, route_table, internet_gateway))
+      ec2.route_internet(vpc_gateway_attachment, route_table, internet_gateway))
   subnet_route_table_association = t.add_resource(
-      vpc.subnet_route_table_association(route_table, subnet))
-  ssh_security_group = t.add_resource(vpc.ssh_security_group(my_vpc))
+      ec2.subnet_route_table_association(route_table, subnet))
+  ssh_security_group = t.add_resource(ec2.ssh_security_group(my_vpc))
 
+  builder_log = t.add_resource(awslog.builder_log())
   log_bucket = t.add_resource(s3.log_bucket())
   notification_topic = t.add_resource(
       sns.notification_topic(notification_email))
-  builder_instance_role = t.add_resource(iam.builder_instance_role(log_bucket))
+  builder_instance_role = t.add_resource(
+      iam.builder_instance_role(log_bucket, builder_log))
   builder_instance_profile = t.add_resource(
       iam.builder_instance_profile(builder_instance_role))
   infrastructure_configuration = t.add_resource(

@@ -1,8 +1,6 @@
 import hashlib
-import logging
 from datetime import datetime
 from itertools import chain
-from pprint import PrettyPrinter
 
 from troposphere import (
     Base64,
@@ -12,6 +10,8 @@ from troposphere import (
     Parameter,
     Ref,
     Region,
+    Select,
+    Split,
     StackId,
     StackName,
     Sub,
@@ -19,12 +19,10 @@ from troposphere import (
     ec2,
     iam,
     imagebuilder,
+    logs,
     s3,
     sns
 )
-
-log = logging.getLogger(__name__)
-pp = PrettyPrinter(indent=3)
 
 
 def command(c, cwd=None):
@@ -42,7 +40,7 @@ def userdata(ini_resource, sig_resource, fingerprint_dict):
 
   return Base64(
       Sub(
-          get_content('mattermost/common/resources/userdata'),
+          get_file('mattermost/common/resources/userdata'),
           STACK_NAME=StackName,
           STACK_ID=StackId,
           REGION=Region,
@@ -68,16 +66,11 @@ class Imp(object):
 
   def ort(self, name):
     return ImportValue(
-        Sub('${stack}:${name}', stack=self.stack_name_value, name=name))
+        Sub('${{stack}}:{}'.format(name), stack=self.stack_name_value))
 
   @classmethod
   def from_ref(cls, stack_name):
     return cls(Ref(stack_name))
-
-
-def get_content(path):
-  with open(path, 'r') as f:
-    return f.read()
 
 
 def sha1digest(data):
@@ -90,21 +83,36 @@ def current_time():
   return datetime.now().strftime('%Y%m%d%H%M%S')
 
 
+def commandname(no, name):
+  return '{:06d}-{}'.format(no, name)
+
+
 def lambda_log_name(function):
   return Sub('/aws/lambda/${f}', f=Ref(function))
 
 
 resource_arns = {
     certificatemanager.Certificate: lambda r: Ref(r),
+    ec2.EIP: lambda r: Sub(
+        (
+            'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:'
+            'elastic-ip/${eip}'),
+        eip=GetAtt(r, 'AllocationId')),
+    iam.InstanceProfile: lambda r: GetAtt(r, 'Arn'),
+    iam.ManagedPolicy: lambda r: Ref(r),
+    iam.Role: lambda r: GetAtt(r, 'Arn'),
     imagebuilder.Component: lambda r: GetAtt(r, 'Arn'),
     imagebuilder.ImageRecipe: lambda r: GetAtt(r, 'Arn'),
     imagebuilder.InfrastructureConfiguration: lambda r: GetAtt(r, 'Arn'),
+    logs.LogGroup: lambda r: Select(0, Split(':*', GetAtt(r, 'Arn'))),
     s3.Bucket: lambda r: GetAtt(r, 'Arn'),
     sns.Topic: lambda r: Ref(r),
 }
 
 resource_names = {
+    ec2.EIP: lambda r: GetAtt(r, 'AllocationId'),
     ec2.InternetGateway: lambda r: Ref(r),
+    ec2.LaunchTemplate: lambda r: Ref(r),
     ec2.RouteTable: lambda r: Ref(r),
     ec2.SecurityGroup: lambda r: Ref(r),
     ec2.Subnet: lambda r: Ref(r),
@@ -112,6 +120,7 @@ resource_names = {
     ec2.VPC: lambda r: Ref(r),
     iam.InstanceProfile: lambda r: Ref(r),
     iam.Role: lambda r: Ref(r),
+    logs.LogGroup: lambda r: Select(0, Split(':*', Ref(r))),
     s3.Bucket: lambda r: Ref(r),
 }
 

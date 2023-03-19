@@ -1,0 +1,19 @@
+#!/bin/bash -eux
+
+device="%%DEVICE"
+mount_point="%%MOUNT"
+
+if [ "$(blkid | awk -v d="$device" '$1==d":"')" == '' ]; then
+  mkfs -t xfs "$device"
+fi
+
+if ! xfs_repair "$device"; then
+  # Mount and unmount first to run xfs_repair without failure.
+  mount -t xfs -o defaults "$device" "$mount_point"
+  umount "$mount_point"
+
+  xfs_repair "$device"
+fi
+
+mount -t xfs -o defaults "$device" "$mount_point"
+xfs_growfs "$mount_point"

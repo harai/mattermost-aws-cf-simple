@@ -1,0 +1,62 @@
+#!/bin/bash -eux
+
+region="${AWS::Region}"
+volume_id="${VOLUME}"
+device="%%DEVICE"
+
+imds_token="$(curl -sSL -f --retry 3 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")"
+instance_id="$(curl -sSL -f --retry 3 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/instance-id)"
+
+query='Reservations[0].Instances[0].BlockDeviceMappings[?DeviceName==`'
+query+="$device"
+query+='`].DeviceName'
+
+instance_state_query='Reservations[0].Instances[0].State.Name'
+
+# Changing the state of the EC2 instance sometimes takes a time.
+# We have to wait for "running" state to attach the volume.
+wait_running_state () {
+  for i in $(seq 1 6); do
+    if [ "$(/usr/bin/aws ec2 describe-instances \
+      --region "$region" \
+      --instance-ids "$instance_id" \
+      --query "$instance_state_query" \
+      --output text)" == 'running' ]
+    then
+      return 0
+    fi
+    sleep 10
+  done
+  return 1
+}
+
+wait_available_state () {
+  for i in $(seq 1 30); do
+    if [ "$(/usr/bin/aws ec2 describe-volumes \
+      --region "$region" \
+      --volume-id "$volume_id" \
+      --query 'Volumes[0].State' \
+      --output text)" == 'available' ]
+    then
+      return 0
+    fi
+    sleep 20
+  done
+  return 1
+}
+
+if [ "$(/usr/bin/aws ec2 describe-instances \
+  --region "$region" \
+  --instance-ids "$instance_id" \
+  --query "$query" \
+  --output text)" != "$device" ]
+then
+  wait_running_state
+  wait_available_state
+
+  /usr/bin/aws ec2 attach-volume \
+    --region "$region" \
+    --volume-id "$volume_id" \
+    --instance-id "$instance_id" \
+    --device "$device"
+fi

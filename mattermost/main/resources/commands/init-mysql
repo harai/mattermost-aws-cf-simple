@@ -1,0 +1,43 @@
+#!/bin/bash -eux
+
+root_pass_file=/var/lib/mysql/root-password
+mm_pass_file=/var/opt/mattermost/mysql-password
+
+if [ -d /var/lib/mysql/data/mysql ]; then
+  exit 0
+fi
+
+if [ -f "$root_pass_file" ]; then
+  >&2 echo "Error: $root_pass_file is not empty."
+  exit 1
+fi
+
+if [ -f "$mm_pass_file" ]; then
+  >&2 echo "Error: $mm_pass_file is not empty."
+  exit 1
+fi
+
+head /dev/urandom | tr -dc A-Za-z0-9_- | head -c 32 > "$root_pass_file"
+chmod 400 "$root_pass_file"
+
+head /dev/urandom | tr -dc A-Za-z0-9_- | head -c 32 > "$mm_pass_file"
+chmod 400 "$mm_pass_file"
+chown mm: "$mm_pass_file"
+
+mysql_install_db --user=mysql --datadir=/var/lib/mysql/data
+
+file="$(mktemp)"
+trap "rm -f $file" EXIT
+
+cp /var/mattermost/mysql-init.sql "$file"
+
+# Never output password to log
+set +x
+root_pass="$(< "$root_pass_file")"
+mm_pass="$(< "$mm_pass_file")"
+sed -i "s;%%ROOT_PASSWORD%%;$root_pass;g" "$file"
+sed -i "s;%%MM_PASSWORD%%;$mm_pass;g" "$file"
+sql="$(< "$file")"
+set -x
+
+mysql -u root <<< "$sql"
