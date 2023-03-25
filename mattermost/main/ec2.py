@@ -1,6 +1,16 @@
 import string
 
-from troposphere import GetAtt, Ref, StackName, Sub, Tags, cloudformation, ec2
+from troposphere import (
+    FindInMap,
+    GetAtt,
+    Ref,
+    Region,
+    StackName,
+    Sub,
+    Tags,
+    cloudformation,
+    ec2
+)
 
 from mattermost.common import util
 from mattermost.common.ec2init import Init
@@ -111,9 +121,11 @@ def template(path, params):
 
 MYSQL_HOME = '/var/lib/mysql'
 MYSQL_DATA = '/var/lib/mysql/data'
+MYSQL_CONFIG = '/var/lib/mysql/persist'
 MNT_CONFIG = '/mnt/config'
 MNT_MM = '/mnt/config/mattermost'
-MM_CONFIG = '/var/opt/mattermost'
+MNT_MYSQL = '/mnt/config/mysql'
+MM_CONFIG = '/var/opt/mattermost/persist'
 
 
 def ec2_metadata(
@@ -125,6 +137,8 @@ def ec2_metadata(
     db_volume_value,
     eip,
     domain,
+    file_bucket,
+    mail_access_key,
 ):
 
   def logger_init():
@@ -132,7 +146,7 @@ def ec2_metadata(
     init.add_files(
         [
             {
-                'name': '/var/mattermost/cwagent/config.json',
+                'name': '/var/opt/cwagent/config.json',
                 'path': 'mattermost/main/resources/files/cwagent.json',
                 'params': {
                     'CFNINIT_LOG': util.name_of(cfninit_log),
@@ -149,7 +163,7 @@ def ec2_metadata(
                 '/opt/aws/amazon-cloudwatch-agent/bin/'
                 'amazon-cloudwatch-agent-ctl'
                 ' -a fetch-config -m ec2 -s -c'
-                ' file:/var/mattermost/cwagent/config.json'),
+                ' file:/var/opt/cwagent/config.json'),
         })
 
     return init
@@ -188,7 +202,7 @@ def ec2_metadata(
                 'params': {},
             },
             {
-                'name': '/var/mattermost/logrotate.d/cwagent',
+                'name': '/etc/logrotate.d/cwagent',
                 'path': 'mattermost/main/resources/files/cwagent.logrotate',
             },
         ])
@@ -208,7 +222,8 @@ def ec2_metadata(
             {
                 'name': util.commandname(2, 'mkdir-db'),
                 'body': (
-                    f'rm -fr {MYSQL_HOME} && mkdir -p {MYSQL_DATA} && '
+                    f'rm -fr {MYSQL_HOME} && '
+                    f'mkdir -p {MYSQL_DATA} {MYSQL_CONFIG} && '
                     f'chown -R mysql: {MYSQL_HOME}'),
             },
             {
@@ -254,12 +269,15 @@ def ec2_metadata(
                         'DEVICE': DEVICE_DB,
                         'MOUNT': MYSQL_DATA,
                     }),
+                'as_bash': True,
             },
             {
                 'name': util.commandname(6, 'bind-config'),
                 'body': (
-                    f'mkdir -p {MNT_MM} && chown -R mm: {MNT_MM} && '
-                    f'mount --bind {MNT_MM} {MM_CONFIG}'),
+                    f'mkdir -p {MNT_MM} {MNT_MYSQL} && '
+                    f'chown -R mm: {MNT_MM} && chown -R mysql: {MNT_MYSQL} && '
+                    f'mount --bind {MNT_MM} {MM_CONFIG} && '
+                    f'mount --bind {MNT_MYSQL} {MYSQL_CONFIG}'),
             },
         ])
 
@@ -270,16 +288,8 @@ def ec2_metadata(
     init.add_files(
         [
             {
-                'name': '/var/mattermost/logrotate.d/mysql',
-                'path': 'mattermost/main/resources/files/mysql.logrotate',
-            },
-            {
-                'name': '/var/mattermost/mysql-init.sql',
-                'path': 'mattermost/main/resources/files/mysql-init.sql',
-            },
-            {
-                'name': '/var/mattermost/my.cnf.d/mysql.cnf',
-                'path': 'mattermost/main/resources/files/mysql.cnf',
+                'name': '/etc/my.cnf.d/mysqld.cnf',
+                'path': 'mattermost/main/resources/files/mysqld.cnf',
             },
         ])
 
@@ -292,8 +302,18 @@ def ec2_metadata(
                     'chown mysql: /var/log/mysql /var/lib/mysql/data'),
             },
             {
-                'name': util.commandname(2, 'init-mysql'),
-                'path': 'mattermost/main/resources/commands/init-mysql',
+                'name': util.commandname(2, 'remove-default-config'),
+                'body': 'rm /etc/my.cnf.d/community-mysql-server.cnf',
+            },
+            {
+                'name': util.commandname(3, 'init-mysql'),
+                'body': template(
+                    'mattermost/main/resources/commands/init-mysql', {
+                        'SQL': util.get_file(
+                            'mattermost/main/resources/commands/mysql-init.sql'
+                        ),
+                    }),
+                'as_bash': True,
             },
         ])
 
@@ -325,8 +345,14 @@ def ec2_metadata(
             {
                 'name': util.commandname(1, 'config-mattermost'),
                 'path': 'mattermost/main/resources/commands/config-mattermost',
+                'as_bash': True,
                 'params': {
                     'DOMAIN': util.read_param(domain),
+                    'BUCKET': util.name_of(file_bucket),
+                    'SMTP_USER': util.name_of(mail_access_key),
+                    'SMTP_SERVER': FindInMap(
+                        'RegionMap', Region, 'SesSmtpServer'),
+                    'SMTP_PASSWORD': GetAtt(mail_access_key, 'SecretAccessKey'),
                 },
             },
             {
@@ -338,6 +364,7 @@ def ec2_metadata(
             {
                 'name': util.commandname(3, 'eip'),
                 'path': 'mattermost/main/resources/commands/eip',
+                'as_bash': True,
                 'params': {
                     'ALLOCATION': util.name_of(eip),
                 },
@@ -352,13 +379,12 @@ def ec2_metadata(
   web = web_init()
 
   return cloudformation.Init(
-      cloudformation.InitConfigSets(
-          default=[
-              'logger',
-              'fs',
-              # 'mysql',
-              # 'web',
-          ]),
+      cloudformation.InitConfigSets(default=[
+          'logger',
+          'fs',
+          'mysql',
+          'web',
+      ]),
       logger=cloudformation.InitConfig(
           files=logger.files(), commands=logger.commands()),
       fs=cloudformation.InitConfig(files=fs.files(), commands=fs.commands()),
@@ -368,11 +394,11 @@ def ec2_metadata(
           files=web.files(),
           commands=web.commands(),
           services={
-              'systemd': cloudformation.InitServices(
-                  {
-                      'mattermost.service': cloudformation.InitService(
-                          enabled=False, ensureRunning=True),
-                  }),
+              # 'systemd': cloudformation.InitServices(
+              #     {
+              #         'mattermost.service': cloudformation.InitService(
+              #             enabled=False, ensureRunning=True),
+              #     }),
           }),
   )
 
@@ -395,6 +421,8 @@ def launch_template(
     eip,
     domain,
     ebs_attach_policy,
+    file_bucket,
+    mail_access_key,
 ):
   return ec2.LaunchTemplate(
       'LaunchTemplate',
@@ -439,4 +467,6 @@ def launch_template(
           config_volume_value=config_volume_value,
           db_volume_value=db_volume_value,
           eip=eip,
-          domain=domain))
+          domain=domain,
+          file_bucket=file_bucket,
+          mail_access_key=mail_access_key))

@@ -1,31 +1,99 @@
 #!/bin/bash -eux
 
-config=/var/opt/mattermost/config.json
-mysql_password=/var/opt/mattermost/mysql-password
+hmac_sha256 () {
+  local -r key="$1"
+  local -r message_file="$2"
+  local -r output_file="$3"
+  local -r hex="$(xxd -ps -c64 "$message_file")"
+  echo -n "$key" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$hex" -binary > "$output_file"
+}
+
+convert_smtp_password () {
+  local -r key="$1"
+  local -r region="$2"
+  local -r file="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f $file" RETURN
+
+  hmac_sha256 11111111 <(echo -n "AWS4$key") "$file"
+  hmac_sha256 "$region" "$file" "$file"
+  hmac_sha256 ses "$file" "$file"
+  hmac_sha256 aws4_request "$file" "$file"
+  hmac_sha256 SendRawEmail "$file" "$file"
+  cat <(printf '\004') "$file" | base64
+}
+
+env=/var/opt/mattermost/config.env
+config=/var/opt/mattermost/persist/config.json
+plugin_dir=/var/opt/mattermost/persist/plugin
+plugin_client_dir=/var/opt/mattermost/persist/client/plugin
+log_dir=/var/log/mattermost
+mysql_password=/var/opt/mattermost/persist/mysql-password
+socket_dir=/var/run/mattermost
+socket=/var/run/mattermost/mattermost.sock
+# shellcheck disable=SC2016
 domain='${DOMAIN}'
+# shellcheck disable=SC2016
+bucket='${BUCKET}'
+# shellcheck disable=SC2016
+region='${AWS::Region}'
+# shellcheck disable=SC2016
+smtp_user='${SMTP_USER}'
+# shellcheck disable=SC2016
+smtp_server='${SMTP_SERVER}'
+
+# Never output password to log
+set +x
+# shellcheck disable=SC2016
+smtp_password="$(convert_smtp_password '${SMTP_PASSWORD}' "$region")"
+set -x
 
 config_set () {
   local -r key="$1"
   local -r value="$2"
 
-  sudo -u mm /opt/mattermost/bin/mmctl --config "$config" config set "$key" "$value"
+  # sudo -u mm /opt/mahtttermost/bin/mmctl --config "$config" config set "$key" "$value"
+  local -r key2=${!key^^}
+  echo "MM_${!key2//./_}=$value" | sudo -u mm tee -a "$env" > /dev/null
 }
 
 if [ ! -f "$config" ]; then
   cp /opt/mattermost/config/config.json "$config"
 fi
 
-chown mm: "$config"
+mkdir -p "$socket_dir" "$log_dir" "$plugin_dir" "$plugin_client_dir"
+touch "$env"
+chmod 600 "$env"
+chown mm: "$config" "$socket_dir" "$log_dir" "$env" "$plugin_dir" "$plugin_client_dir"
 
 config_set SqlSettings.DriverName mysql
+
 # Never output password to log
 set +x
 config_set SqlSettings.DataSource "mm:$(< "$mysql_password")@unix(/var/run/mysqld/mysqld.sock)/mm?charset=utf8mb4,utf8"
 set -x
 
 config_set ServiceSettings.SiteURL "https://$domain"
+config_set ServiceSettings.EnableLocalMode true
+config_set ServiceSettings.LocalModeSocketLocation "$socket"
 config_set ServiceSettings.ListenAddress :443
 config_set ServiceSettings.ConnectionSecurity TLS
 config_set ServiceSettings.UseLetsEncrypt true
-config_set ServiceSettings.LetsEncryptCertificateCacheFile /var/opt/mattermost/cert/letsencrypt.cache
+config_set ServiceSettings.LetsEncryptCertificateCacheFile /var/opt/mattermost/persist/cert/letsencrypt.cache
 config_set ServiceSettings.Forward80To443 true
+config_set FileSettings.DriverName amazons3
+config_set FileSettings.AmazonS3Bucket "$bucket"
+config_set FileSettings.AmazonS3Region "$region"
+config_set EmailSettings.EnableSMTPAuth true
+config_set EmailSettings.SMTPUsername "$smtp_user"
+config_set LogSettings.FileLocation "$log_dir"
+config_set PluginSettings.Directory "$plugin_dir"
+config_set PluginSettings.ClientDirectory "$plugin_client_dir"
+
+# Never output password to log
+set +x
+config_set EmailSettings.SMTPPassword "$smtp_password"
+set -x
+
+config_set EmailSettings.SMTPServer "$smtp_server"
+config_set EmailSettings.SMTPPort 465

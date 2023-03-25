@@ -47,7 +47,7 @@ class InitItem(object):
       raise ValueError(self._name)
 
     c2 = (
-        "#!/bin/sh\n\n/bin/bash -eux <<'CF_EOF'\n" + c +
+        "#!/bin/sh\n\n/bin/bash -O inherit_errexit -eux <<'CF_EOF'\n" + c +
         "\nCF_EOF\n" if self._as_bash else c)
 
     c3 = Sub(c2, **self._params) if self._params is not None else c2

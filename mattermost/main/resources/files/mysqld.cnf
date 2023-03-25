@@ -1,6 +1,7 @@
 [mysqld]
+datadir=/var/lib/mysql/data
 default-authentication-plugin=mysql_native_password
-log_error=/var/log/mysql/error.log
+log_error=/var/log/mysql/mysqld.log
 long_query_time=1
 mysqlx=OFF
 skip-networking=true
@@ -9,3 +10,6 @@ slow_query_log=ON
 socket=/var/run/mysqld/mysqld.sock
 # bind-address=127.0.0.1
 # mysqlx-bind-address=127.0.0.1
+
+[client]
+socket=/var/run/mysqld/mysqld.sock

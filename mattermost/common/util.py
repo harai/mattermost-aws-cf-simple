@@ -118,6 +118,7 @@ resource_names = {
     ec2.Subnet: lambda r: Ref(r),
     ec2.Volume: lambda r: Ref(r),
     ec2.VPC: lambda r: Ref(r),
+    iam.AccessKey: lambda r: Ref(r),
     iam.InstanceProfile: lambda r: Ref(r),
     iam.Role: lambda r: Ref(r),
     logs.LogGroup: lambda r: Select(0, Split(':*', Ref(r))),

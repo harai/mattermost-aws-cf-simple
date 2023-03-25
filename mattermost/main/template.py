@@ -7,6 +7,7 @@ from mattermost.main import (
     iam,
     mapping,
     parameter,
+    s3,
     sns
 )
 
@@ -61,14 +62,19 @@ def construct_template():
   mattermost_log = t.add_resource(awslog.mattermost_log())
   mysql_error_log = t.add_resource(awslog.mysql_error_log())
 
+  mail_user = t.add_resource(iam.mail_user())
+  mail_access_key = t.add_resource(iam.mail_access_key(mail_user))
+
   eip = t.add_resource(ec2.eip(my_vpc))
+  file_bucket = t.add_resource(s3.file_bucket())
 
   ec2_instance_role = t.add_resource(
       iam.ec2_instance_role(
           cfninit_log=cfninit_log,
           mattermost_log=mattermost_log,
           mysql_error_log=mysql_error_log,
-          eip=eip))
+          eip=eip,
+          file_bucket=file_bucket))
   instance_profile = t.add_resource(iam.instance_profile(ec2_instance_role))
   ebs_attach_policy = t.add_resource(
       iam.ebs_attach_policy(
@@ -97,7 +103,9 @@ def construct_template():
           db_volume_value=db_volume_value,
           eip=eip,
           domain=domain,
-          ebs_attach_policy=ebs_attach_policy))
+          ebs_attach_policy=ebs_attach_policy,
+          file_bucket=file_bucket,
+          mail_access_key=mail_access_key))
 
   auto_scaling_group = t.add_resource(
       autoscale.auto_scaling_group(

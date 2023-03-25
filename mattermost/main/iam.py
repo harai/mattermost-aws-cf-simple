@@ -1,4 +1,4 @@
-from troposphere import StackName, Sub, iam
+from troposphere import Ref, StackName, Sub, iam
 
 from mattermost.common import util
 
@@ -37,12 +37,11 @@ def ebs_attach_policy(
                           'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:'
                           'instance/*'),
                   ],
-                  # 'Condition': {
-                  #     'ArnEquals': {
-                  #         'ec2:InstanceProfile': util.arn_of(
-                  #             instance_profile),
-                  #     },
-                  # },
+                  'Condition': {
+                      'ArnEqualsIfExists': {
+                          'ec2:InstanceProfile': util.arn_of(instance_profile),
+                      },
+                  },
               },
           ],
       },
@@ -50,7 +49,8 @@ def ebs_attach_policy(
       Roles=[util.name_of(ec2_instance_role)])
 
 
-def ec2_instance_role(*, cfninit_log, mattermost_log, mysql_error_log, eip):
+def ec2_instance_role(
+    *, cfninit_log, mattermost_log, mysql_error_log, eip, file_bucket):
   return iam.Role(
       'Ec2InstanceRole',
       AssumeRolePolicyDocument={
@@ -143,9 +143,54 @@ def ec2_instance_role(*, cfninit_log, mattermost_log, mysql_error_log, eip):
                   ],
               },
               PolicyName='eip-associate'),
+          iam.Policy(
+              PolicyDocument={
+                  'Version': '2012-10-17',
+                  'Statement': [
+                      {
+                          'Action': [
+                              's3:DeleteObject',
+                              's3:GetObject',
+                              's3:PutObject',
+                          ],
+                          'Effect': 'Allow',
+                          'Resource': Sub(
+                              '${bucket}/*', bucket=util.arn_of(file_bucket)),
+                      },
+                      {
+                          'Action': 's3:ListBucket',
+                          'Effect': 'Allow',
+                          'Resource': util.arn_of(file_bucket),
+                      },
+                  ],
+              },
+              PolicyName='file-bucket'),
       ])
 
 
 def instance_profile(ec2_instance_role):
   return iam.InstanceProfile(
       'InstanceProfile', Roles=[util.name_of(ec2_instance_role)])
+
+
+def mail_user():
+  return iam.User(
+      'MailUser',
+      Policies=[
+          iam.Policy(
+              PolicyName='mail',
+              PolicyDocument={
+                  'Version': '2012-10-17',
+                  'Statement': [
+                      {
+                          'Effect': 'Allow',
+                          'Action': 'ses:SendRawEmail',
+                          'Resource': '*',
+                      },
+                  ],
+              }),
+      ])
+
+
+def mail_access_key(mail_user):
+  return iam.AccessKey('MailAccessKey', UserName=Ref(mail_user))

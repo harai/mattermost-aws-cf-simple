@@ -5,7 +5,8 @@ After=mysqld.service
 BindsTo=mysqld.service
 [Service]
 Type=notify
-ExecStart=/opt/mattermost/bin/mattermost
+EnvironmentFile=/var/opt/mattermost/config.env
+ExecStart=/opt/mattermost/bin/mattermost -c /var/opt/mattermost/persist/config.json
 TimeoutStartSec=3600
 KillMode=mixed
 Restart=always
