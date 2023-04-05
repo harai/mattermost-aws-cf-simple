@@ -125,7 +125,9 @@ MYSQL_CONFIG = '/var/lib/mysql/persist'
 MNT_CONFIG = '/mnt/config'
 MNT_MM = '/mnt/config/mattermost'
 MNT_MYSQL = '/mnt/config/mysql'
+MNT_LE = '/mnt/config/letsencrypt'
 MM_CONFIG = '/var/opt/mattermost/persist'
+LE_CONFIG = '/etc/letsencrypt'
 
 
 def ec2_metadata(
@@ -139,6 +141,7 @@ def ec2_metadata(
     domain,
     file_bucket,
     mail_access_key,
+    email,
 ):
 
   def logger_init():
@@ -196,12 +199,6 @@ def ec2_metadata(
                 },
             },
             {
-                'name': '/usr/local/bin/ses-smtp-conv',
-                'path': 'mattermost/main/resources/files/ses-smtp-conv',
-                'mode': '000755',
-                'params': {},
-            },
-            {
                 'name': '/etc/logrotate.d/cwagent',
                 'path': 'mattermost/main/resources/files/cwagent.logrotate',
             },
@@ -216,7 +213,7 @@ def ec2_metadata(
             {
                 'name': util.commandname(2, 'mkdir-config'),
                 'body': (
-                    f'mkdir -p {MNT_CONFIG} {MM_CONFIG} && '
+                    f'mkdir -p {MNT_CONFIG} {MM_CONFIG} {LE_CONFIG} && '
                     f'chown -R mm: {MM_CONFIG}'),
             },
             {
@@ -274,9 +271,10 @@ def ec2_metadata(
             {
                 'name': util.commandname(6, 'bind-config'),
                 'body': (
-                    f'mkdir -p {MNT_MM} {MNT_MYSQL} && '
+                    f'mkdir -p {MNT_MM} {MNT_MYSQL} {MNT_LE} && '
                     f'chown -R mm: {MNT_MM} && chown -R mysql: {MNT_MYSQL} && '
                     f'mount --bind {MNT_MM} {MM_CONFIG} && '
+                    f'mount --bind {MNT_LE} {LE_CONFIG} && '
                     f'mount --bind {MNT_MYSQL} {MYSQL_CONFIG}'),
             },
         ])
@@ -324,6 +322,21 @@ def ec2_metadata(
     init.add_files(
         [
             {
+                'name': '/etc/cron.d/acme-renew.conf',
+                'path': 'mattermost/main/resources/files/acme-renew.conf',
+                'params': {
+                    'EMAIL': util.read_param(email),
+                    'DOMAIN': util.read_param(domain),
+                },
+            },
+            {
+                'name': '/etc/nginx/nginx.conf',
+                'path': 'mattermost/main/resources/files/nginx.conf',
+                'params': {
+                    'DOMAIN': util.read_param(domain),
+                },
+            },
+            {
                 'name': '/lib/systemd/system/mattermost.service',
                 'path': 'mattermost/main/resources/files/mattermost.service',
             },
@@ -362,7 +375,17 @@ def ec2_metadata(
                     '/opt/mattermost/bin/mattermost'),
             },
             {
-                'name': util.commandname(3, 'eip'),
+                'name': util.commandname(3, 'acme'),
+                'body': (
+                    "certbot certonly --dns-route53 -n -m '${EMAIL}' "
+                    "--agree-tos -d '${DOMAIN}'"),
+                'params': {
+                    'EMAIL': util.read_param(email),
+                    'DOMAIN': util.read_param(domain),
+                },
+            },
+            {
+                'name': util.commandname(4, 'eip'),
                 'path': 'mattermost/main/resources/commands/eip',
                 'as_bash': True,
                 'params': {
@@ -394,11 +417,13 @@ def ec2_metadata(
           files=web.files(),
           commands=web.commands(),
           services={
-              # 'systemd': cloudformation.InitServices(
-              #     {
-              #         'mattermost.service': cloudformation.InitService(
-              #             enabled=False, ensureRunning=True),
-              #     }),
+              'systemd': cloudformation.InitServices(
+                  {
+                      'mattermost.service': cloudformation.InitService(
+                          enabled=False, ensureRunning=True),
+                      'nginx.service': cloudformation.InitService(
+                          enabled=False, ensureRunning=True),
+                  }),
           }),
   )
 
@@ -423,6 +448,7 @@ def launch_template(
     ebs_attach_policy,
     file_bucket,
     mail_access_key,
+    email,
 ):
   return ec2.LaunchTemplate(
       'LaunchTemplate',
@@ -469,4 +495,5 @@ def launch_template(
           eip=eip,
           domain=domain,
           file_bucket=file_bucket,
-          mail_access_key=mail_access_key))
+          mail_access_key=mail_access_key,
+          email=email))

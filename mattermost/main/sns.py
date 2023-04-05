@@ -3,10 +3,9 @@ from troposphere import sns
 from mattermost.common import util
 
 
-def notification_topic(notification_email):
+def notification_topic(email):
   return sns.Topic(
       'NotificationTopic',
       Subscription=[
-          sns.Subscription(
-              Endpoint=util.read_param(notification_email), Protocol='email'),
+          sns.Subscription(Endpoint=util.read_param(email), Protocol='email'),
       ])

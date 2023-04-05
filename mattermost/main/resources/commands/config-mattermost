@@ -29,8 +29,8 @@ plugin_dir=/var/opt/mattermost/persist/plugin
 plugin_client_dir=/var/opt/mattermost/persist/client/plugin
 log_dir=/var/log/mattermost
 mysql_password=/var/opt/mattermost/persist/mysql-password
-socket_dir=/var/run/mattermost
-socket=/var/run/mattermost/mattermost.sock
+socket_dir=/run/mattermost
+socket=/run/mattermost/mattermost.sock
 # shellcheck disable=SC2016
 domain='${DOMAIN}'
 # shellcheck disable=SC2016
@@ -70,17 +70,15 @@ config_set SqlSettings.DriverName mysql
 
 # Never output password to log
 set +x
-config_set SqlSettings.DataSource "mm:$(< "$mysql_password")@unix(/var/run/mysqld/mysqld.sock)/mm?charset=utf8mb4,utf8"
+config_set SqlSettings.DataSource "mm:$(< "$mysql_password")@unix(/run/mysqld/mysqld.sock)/mm?charset=utf8mb4,utf8"
 set -x
 
 config_set ServiceSettings.SiteURL "https://$domain"
 config_set ServiceSettings.EnableLocalMode true
 config_set ServiceSettings.LocalModeSocketLocation "$socket"
-config_set ServiceSettings.ListenAddress :443
-config_set ServiceSettings.ConnectionSecurity TLS
-config_set ServiceSettings.UseLetsEncrypt true
-config_set ServiceSettings.LetsEncryptCertificateCacheFile /var/opt/mattermost/persist/cert/letsencrypt.cache
-config_set ServiceSettings.Forward80To443 true
+config_set ServiceSettings.ListenAddress 127.0.0.1:8065
+config_set ServiceSettings.UseLetsEncrypt false
+config_set ServiceSettings.Forward80To443 false
 config_set FileSettings.DriverName amazons3
 config_set FileSettings.AmazonS3Bucket "$bucket"
 config_set FileSettings.AmazonS3Region "$region"

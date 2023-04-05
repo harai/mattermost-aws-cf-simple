@@ -50,7 +50,18 @@ def ebs_attach_policy(
 
 
 def ec2_instance_role(
-    *, cfninit_log, mattermost_log, mysql_error_log, eip, file_bucket):
+    *, cfninit_log, mattermost_log, mysql_error_log, eip, file_bucket, domain,
+    hosted_zone):
+  certbot_condition = {
+      'ForAllValues:StringEquals': {
+          'route53:ChangeResourceRecordSetsNormalizedRecordNames': [
+              Sub('_acme-challenge.${domain}', domain=util.read_param(domain)),
+          ],
+          'route53:ChangeResourceRecordSetsRecordTypes': ['TXT'],
+          'route53:ChangeResourceRecordSetsActions': ['UPSERT'],
+      },
+  }
+
   return iam.Role(
       'Ec2InstanceRole',
       AssumeRolePolicyDocument={
@@ -165,6 +176,29 @@ def ec2_instance_role(
                   ],
               },
               PolicyName='file-bucket'),
+          iam.Policy(
+              PolicyDocument={
+                  'Version': '2012-10-17',
+                  'Statement': [
+                      {
+                          'Action': 'route53:ChangeResourceRecordSets',
+                          'Condition': certbot_condition,
+                          'Effect': 'Allow',
+                          'Resource': Sub(
+                              'arn:aws:route53:::hostedzone/${id}',
+                              id=util.read_param(hosted_zone)),
+                      },
+                      {
+                          'Action': [
+                              'route53:GetChange',
+                              'route53:ListHostedZones',
+                          ],
+                          'Effect': 'Allow',
+                          'Resource': '*',
+                      },
+                  ],
+              },
+              PolicyName='certbot'),
       ])
 
 

@@ -7,9 +7,9 @@ mysqlx=OFF
 skip-networking=true
 slow_query_log_file=/var/log/mysql/slow.log
 slow_query_log=ON
-socket=/var/run/mysqld/mysqld.sock
+socket=/run/mysqld/mysqld.sock
 # bind-address=127.0.0.1
 # mysqlx-bind-address=127.0.0.1
 
 [client]
-socket=/var/run/mysqld/mysqld.sock
+socket=/run/mysqld/mysqld.sock

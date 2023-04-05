@@ -16,7 +16,7 @@ instance_state_query='Reservations[0].Instances[0].State.Name'
 # Changing the state of the EC2 instance sometimes takes a time.
 # We have to wait for "running" state to attach the volume.
 wait_running_state () {
-  for i in $(seq 1 6); do
+  for _ in $(seq 1 6); do
     if [ "$(/usr/bin/aws ec2 describe-instances \
       --region "$region" \
       --instance-ids "$instance_id" \
@@ -31,7 +31,7 @@ wait_running_state () {
 }
 
 wait_available_state () {
-  for i in $(seq 1 30); do
+  for _ in $(seq 1 30); do
     if [ "$(/usr/bin/aws ec2 describe-volumes \
       --region "$region" \
       --volume-id "$volume_id" \

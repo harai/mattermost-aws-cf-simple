@@ -46,17 +46,20 @@ def general_group(pui, template):
               'label': 'Domain Name',
           },
           {
+              'parameter': Parameter('HostedZone', Type=constants.STRING),
+              'label': 'Hosted Zone ID',
+          },
+          {
               'parameter': Parameter('Ami', Type=constants.IMAGE_ID),
-              'label': 'AMI ID (Amazon Linux 2023 x86_64)',
+              'label': 'AMI ID',
           },
           {
               'parameter': Parameter('KeyPair', Type=constants.KEY_PAIR_NAME),
               'label': 'Key Pair',
           },
           {
-              'parameter': Parameter(
-                  'NotificationEmail', Type=constants.STRING),
-              'label': 'Notification Email',
+              'parameter': Parameter('Email', Type=constants.STRING),
+              'label': 'Administrator Email',
           },
           {
               'parameter': Parameter('InstanceType', Type=constants.STRING),
@@ -66,5 +69,10 @@ def general_group(pui, template):
               'parameter': Parameter(
                   'InstanceFingerprint', Type=constants.STRING),
               'label': 'EC2 Instance Fingerprint',
+          },
+          {
+              'parameter': Parameter(
+                  'CloudfrontCertificateArn', Type=constants.STRING),
+              'label': 'CloudFront Certificate ARN',
           },
       ])

@@ -47,12 +47,27 @@ phases:
       commands:
       - groupadd -g 888 mm
       - useradd -u 888 -g 888 -c 'Mattermost server' --system mm
+  - name: AddNginxUser
+    action: ExecuteBash
+    inputs:
+      commands:
+      - groupadd -g 887 nginx
+      - useradd -d /var/lib/nginx -c 'Nginx server' -u 887 -g 887 -M nginx
   - name: InstallPackages
     action: ExecuteBash
     inputs:
       commands:
       - dnf install --nogpgcheck -y community-mysql-server
-      - dnf install -y amazon-cloudwatch-agent mlocate
+      - dnf install -y amazon-cloudwatch-agent mlocate nginx
+  - name: InstallCertbot
+    action: ExecuteBash
+    inputs:
+      commands:
+      - dnf install -y python3 augeas-libs pip
+      - python3 -m venv /opt/certbot/
+      - /opt/certbot/bin/pip install --upgrade pip
+      - /opt/certbot/bin/pip install certbot certbot-dns-route53
+      - ln -s /opt/certbot/bin/certbot /usr/bin/certbot
   - name: DownloadMattermost
     action: WebDownload
     inputs:

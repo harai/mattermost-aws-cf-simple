@@ -3,6 +3,7 @@ from mattermost.common.util import Imp
 from mattermost.main import (
     autoscale,
     awslog,
+    cloudfront,
     ec2,
     iam,
     mapping,
@@ -21,11 +22,13 @@ def construct_template():
   ] = parameter.network_group(pui, t)
   [
       domain,
+      hosted_zone,
       ami,
       key_pair,
-      notification_email,
+      email,
       instance_type,
       instance_fingerprint,
+      cloudfront_certificate_arn,
   ] = parameter.general_group(pui, t)
   [
       config_volume_stack,
@@ -74,7 +77,9 @@ def construct_template():
           mattermost_log=mattermost_log,
           mysql_error_log=mysql_error_log,
           eip=eip,
-          file_bucket=file_bucket))
+          file_bucket=file_bucket,
+          domain=domain,
+          hosted_zone=hosted_zone))
   instance_profile = t.add_resource(iam.instance_profile(ec2_instance_role))
   ebs_attach_policy = t.add_resource(
       iam.ebs_attach_policy(
@@ -83,8 +88,7 @@ def construct_template():
           config_volume_value=config_volume_value,
           db_volume_value=db_volume_value))
 
-  notification_topic = t.add_resource(
-      sns.notification_topic(notification_email))
+  notification_topic = t.add_resource(sns.notification_topic(email))
 
   launch_template = t.add_resource(
       ec2.launch_template(
@@ -105,9 +109,10 @@ def construct_template():
           domain=domain,
           ebs_attach_policy=ebs_attach_policy,
           file_bucket=file_bucket,
-          mail_access_key=mail_access_key))
+          mail_access_key=mail_access_key,
+          email=email))
 
-  auto_scaling_group = t.add_resource(
+  t.add_resource(
       autoscale.auto_scaling_group(
           route_internet=route_internet,
           subnet_route_table_association=subnet_route_table_association,
@@ -116,6 +121,13 @@ def construct_template():
           eip=eip,
           launch_template=launch_template,
           notification_topic=notification_topic))
+
+  t.add_resource(
+      cloudfront.distribution(
+          cloudfront_certificate_arn=cloudfront_certificate_arn,
+          domain=domain,
+          default_cache_policy=default_cache_policy,
+          distribution_log_bucket=distribution_log_bucket))
 
   return t
 

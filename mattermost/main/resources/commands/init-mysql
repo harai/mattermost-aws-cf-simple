@@ -31,7 +31,7 @@ sudo -u mysql mysqld \
   --initialize-insecure
 
 file="$(mktemp)"
-trap "rm -f $file" EXIT
+trap 'rm -f $file' EXIT
 
 cat <<'EOF' > "$file"
 %%SQL
