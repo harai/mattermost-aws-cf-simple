@@ -2,10 +2,12 @@ from troposphere import GetAtt, Sub, cloudfront
 
 from mattermost.common import util
 
+CACHING_DISABLED_CACHE_POLICY = '4135ea2d-6df8-44a3-9df3-4b5a84be39ad'
+ALL_VIEWER_ORIGIN_REQUEST_POLICY = '216adef6-5c7f-47e4-b989-5492eafa07d3'
+
 
 def distribution(
-    *, cloudfront_certificate_arn, domain, default_cache_policy,
-    distribution_log_bucket):
+    *, cloudfront_certificate_arn, domain, distribution_log_bucket):
   return cloudfront.Distribution(
       'Distribution',
       DistributionConfig=cloudfront.DistributionConfig(
@@ -25,26 +27,26 @@ def distribution(
                   'GET',
                   'HEAD',
               ],
-              CachePolicyId=util.name_of(default_cache_policy),
+              CachePolicyId=CACHING_DISABLED_CACHE_POLICY,
               Compress=True,
+              OriginRequestPolicyId=ALL_VIEWER_ORIGIN_REQUEST_POLICY,
               TargetOriginId='main',
-              ViewerProtocolPolicy='redirect-to-https')),
-      Enabled=True,
-      HttpVersion='http2and3',
-      Logging=cloudfront.Logging(
-          Bucket=GetAtt(distribution_log_bucket, 'DomainName'),
-          IncludeCookies=False),
-      Origins=[
-          cloudfront.Origin(
-              CustomOriginConfig=cloudfront.CustomOriginConfig(
-                  OriginProtocolPolicy='https-only'),
-              DomainName=Sub(
-                  'origin.${AWS::StackName}.${domain}',
-                  domain=util.read_param(domain)),
-              Id='main'),
-      ],
-      ViewerCertificate=cloudfront.ViewerCertificated(
-          AcmCertificateArn=util.read_param(cloudfront_certificate_arn),
-          CloudFrontDefaultCertificate=False,
-          MinimumProtocolVersion='TLSv1.2_2021',
-          SslSupportMethod='sni-only'))
+              ViewerProtocolPolicy='redirect-to-https'),
+          Enabled=True,
+          HttpVersion='http2and3',
+          Logging=cloudfront.Logging(
+              Bucket=GetAtt(distribution_log_bucket, 'DomainName'),
+              IncludeCookies=False),
+          Origins=[
+              cloudfront.Origin(
+                  CustomOriginConfig=cloudfront.CustomOriginConfig(
+                      OriginProtocolPolicy='https-only'),
+                  DomainName=Sub(
+                      'origin.${AWS::StackName}.${domain}',
+                      domain=util.read_param(domain)),
+                  Id='main'),
+          ],
+          ViewerCertificate=cloudfront.ViewerCertificate(
+              AcmCertificateArn=util.read_param(cloudfront_certificate_arn),
+              MinimumProtocolVersion='TLSv1.2_2021',
+              SslSupportMethod='sni-only')))

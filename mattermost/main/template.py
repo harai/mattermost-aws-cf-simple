@@ -8,6 +8,7 @@ from mattermost.main import (
     iam,
     mapping,
     parameter,
+    route53,
     s3,
     sns
 )
@@ -69,7 +70,11 @@ def construct_template():
   mail_access_key = t.add_resource(iam.mail_access_key(mail_user))
 
   eip = t.add_resource(ec2.eip(my_vpc))
+  t.add_resource(
+      route53.origin_record_set(
+          domain=domain, hosted_zone=hosted_zone, eip=eip))
   file_bucket = t.add_resource(s3.file_bucket())
+  distribution_log_bucket = t.add_resource(s3.distribution_log_bucket())
 
   ec2_instance_role = t.add_resource(
       iam.ec2_instance_role(
@@ -126,7 +131,6 @@ def construct_template():
       cloudfront.distribution(
           cloudfront_certificate_arn=cloudfront_certificate_arn,
           domain=domain,
-          default_cache_policy=default_cache_policy,
           distribution_log_bucket=distribution_log_bucket))
 
   return t

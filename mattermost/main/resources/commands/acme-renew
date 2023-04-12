@@ -1,7 +1,0 @@
-#!/bin/bash -eux
-
-set +x
-date -Iseconds
-set -x
-
-certbot certonly --dns-route53 -n -m '${EMAIL}' --post-hook '/usr/bin/systemctl reload nginx' --agree-tos -d '${DOMAIN}'

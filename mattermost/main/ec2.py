@@ -98,10 +98,16 @@ def web_security_group(my_vpc):
       GroupDescription='Incoming web requests',
       SecurityGroupEgress=[],
       SecurityGroupIngress=[
+          # ec2.SecurityGroupRule(
+          #     CidrIp='0.0.0.0/0', FromPort=443, IpProtocol='tcp', ToPort=443),
+          # ec2.SecurityGroupRule(
+          #     CidrIp='0.0.0.0/0', FromPort=80, IpProtocol='tcp', ToPort=80),
           ec2.SecurityGroupRule(
-              CidrIp='0.0.0.0/0', FromPort=443, IpProtocol='tcp', ToPort=443),
-          ec2.SecurityGroupRule(
-              CidrIp='0.0.0.0/0', FromPort=80, IpProtocol='tcp', ToPort=80),
+              SourcePrefixListId=FindInMap(
+                  'RegionMap', Region, 'CloudfrontPrefixList'),
+              FromPort=443,
+              IpProtocol='tcp',
+              ToPort=443),
       ],
       VpcId=util.name_of(my_vpc),
       Tags=Tags(Name='WebSecurityGroup'))
@@ -378,7 +384,8 @@ def ec2_metadata(
                 'name': util.commandname(3, 'acme'),
                 'body': (
                     "certbot certonly --dns-route53 -n -m '${EMAIL}' "
-                    "--agree-tos -d '${DOMAIN}'"),
+                    '--agree-tos --expand '
+                    "-d '${DOMAIN},origin.${AWS::StackName}.${DOMAIN}'"),
                 'params': {
                     'EMAIL': util.read_param(email),
                     'DOMAIN': util.read_param(domain),

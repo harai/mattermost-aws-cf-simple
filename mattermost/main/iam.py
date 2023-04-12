@@ -56,6 +56,9 @@ def ec2_instance_role(
       'ForAllValues:StringEquals': {
           'route53:ChangeResourceRecordSetsNormalizedRecordNames': [
               Sub('_acme-challenge.${domain}', domain=util.read_param(domain)),
+              Sub(
+                  '_acme-challenge.origin.${AWS::StackName}.${domain}',
+                  domain=util.read_param(domain)),
           ],
           'route53:ChangeResourceRecordSetsRecordTypes': ['TXT'],
           'route53:ChangeResourceRecordSetsActions': ['UPSERT'],
