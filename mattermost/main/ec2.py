@@ -208,6 +208,10 @@ def ec2_metadata(
                 'name': '/etc/logrotate.d/cwagent',
                 'path': 'mattermost/main/resources/files/cwagent.logrotate',
             },
+            {
+                'name': '/etc/logrotate.d/mattermost',
+                'path': 'mattermost/main/resources/files/mattermost.logrotate',
+            },
         ])
 
     init.add_commands(

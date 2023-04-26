@@ -1,0 +1,12 @@
+/var/log/mattermost/mattermost.log {
+    create 0644 mm mm
+    su mm mm
+    size 10M
+    rotate 1
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        /bin/systemctl restart mattermost.service
+    endscript
+}

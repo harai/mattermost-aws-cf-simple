@@ -13,10 +13,10 @@
             "log_group_name": "${CFNINIT_LOG}",
             "log_stream_name": "{instance_id}",
             "multi_line_start_pattern": "{timestamp_format}",
-            "timestamp_format": "%Y-%m-%d %H:%M:%S"
+            "timestamp_format": "%Y-%m-%d %H:%M:%S,%f"
           },
           {
-            "file_path": "/var/log/mattermost/mattermost.log*",
+            "file_path": "/var/log/mattermost/mattermost.log",
             "log_group_name": "${MATTERMOST_LOG}",
             "log_stream_name": "{instance_id}",
             "multi_line_start_pattern": "{timestamp_format}",
@@ -24,11 +24,12 @@
             "timezone": "UTC"
           },
           {
-            "file_path": "/var/log/mysql/error.log*",
+            "file_path": "/var/log/mysql/mysqld.log",
             "log_group_name": "${MYSQL_ERROR_LOG}",
             "log_stream_name": "{instance_id}",
             "multi_line_start_pattern": "{timestamp_format}",
-            "timestamp_format": "%Y-%m-%d %H:%M:%S"
+            "timestamp_format": "%Y-%m-%dT%H:%M:%S.%fZ",
+            "timezone": "UTC"
           }
         ]
       }
