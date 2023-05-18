@@ -1,4 +1,4 @@
-from troposphere import Ref, StackName, Sub, iam
+from troposphere import Ref, StackName, Sub, Tags, iam
 
 from mattermost.common import util
 
@@ -202,7 +202,10 @@ def ec2_instance_role(
                   ],
               },
               PolicyName='certbot'),
-      ])
+      ],
+      Tags=Tags({
+          'mm:stack': StackName,
+      }))
 
 
 def instance_profile(ec2_instance_role):
@@ -226,8 +229,36 @@ def mail_user():
                       },
                   ],
               }),
-      ])
+      ],
+      Tags=Tags({
+          'mm:stack': StackName,
+      }))
 
 
 def mail_access_key(mail_user):
   return iam.AccessKey('MailAccessKey', UserName=Ref(mail_user))
+
+
+def backup_role():
+  return iam.Role(
+      'BackupRole',
+      AssumeRolePolicyDocument={
+          'Version': '2012-10-17',
+          'Statement': [
+              {
+                  'Effect': 'Allow',
+                  'Principal': {
+                      'Service': 'backup.amazonaws.com',
+                  },
+                  'Action': 'sts:AssumeRole',
+              },
+          ],
+      },
+      ManagedPolicyArns=[
+          (
+              'arn:aws:iam::aws:policy/service-role/'
+              'AWSBackupServiceRolePolicyForBackup'),
+      ],
+      Tags=Tags({
+          'mm:stack': StackName,
+      }))

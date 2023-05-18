@@ -3,6 +3,7 @@ from mattermost.common.util import Imp
 from mattermost.main import (
     autoscale,
     awslog,
+    backup,
     cloudfront,
     ec2,
     iam,
@@ -92,8 +93,18 @@ def construct_template():
           instance_profile=instance_profile,
           config_volume_value=config_volume_value,
           db_volume_value=db_volume_value))
+  backup_role = t.add_resource(iam.backup_role())
 
   notification_topic = t.add_resource(sns.notification_topic(email))
+
+  backup_vault = t.add_resource(backup.backup_vault())
+  backup_plan = t.add_resource(backup.backup_plan(backup_vault))
+  t.add_resource(
+      backup.backup_selection(
+          backup_plan=backup_plan,
+          backup_role=backup_role,
+          config_volume_stack=config_volume_stack,
+          db_volume_stack=db_volume_stack))
 
   launch_template = t.add_resource(
       ec2.launch_template(

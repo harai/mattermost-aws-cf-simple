@@ -66,10 +66,9 @@ touch "$env"
 chmod 600 "$env"
 chown mm: "$config" "$socket_dir" "$log_dir" "$env" "$plugin_dir" "$plugin_client_dir"
 
-config_set SqlSettings.DriverName mysql
-
 # Never output password to log
 set +x
+config_set EmailSettings.SMTPPassword "$smtp_password"
 config_set SqlSettings.DataSource "mm:$(< "$mysql_password")@unix(/run/mysqld/mysqld.sock)/mm?charset=utf8mb4,utf8"
 set -x
 
@@ -111,9 +110,4 @@ config_set ServiceSettings.TLSCertFile ''
 config_set ServiceSettings.TLSKeyFile ''
 config_set ServiceSettings.UseLetsEncrypt false
 config_set ServiceSettings.WebserverMode gzip
-
-# Never output password to log
-set +x
-config_set EmailSettings.SMTPPassword "$smtp_password"
-set -x
-
+config_set SqlSettings.DriverName mysql

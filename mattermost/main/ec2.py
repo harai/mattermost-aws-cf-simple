@@ -33,7 +33,12 @@ def my_vpc(vpc_cidr_block):
           '10.${block}.0.0/16', block=util.read_param(vpc_cidr_block)),
       EnableDnsHostnames=True,
       EnableDnsSupport=True,
-      InstanceTenancy='default')
+      InstanceTenancy='default',
+      Tags=Tags(
+          {
+              'Name': Sub('${AWS::StackName}:MyVpc'),
+              'mm:stack': StackName,
+          }))
 
 
 def subnet(my_vpc, vpc_cidr_block, az):
@@ -43,6 +48,11 @@ def subnet(my_vpc, vpc_cidr_block, az):
       CidrBlock=Sub(
           '10.${block}.0.0/24', block=util.read_param(vpc_cidr_block)),
       MapPublicIpOnLaunch=True,
+      Tags=Tags(
+          {
+              'Name': Sub('${AWS::StackName}:Subnet'),
+              'mm:stack': StackName,
+          }),
       VpcId=util.name_of(my_vpc))
 
 
@@ -61,7 +71,13 @@ def route_internet(*, vpc_gateway_attachment, route_table, internet_gateway):
 
 
 def internet_gateway():
-  return ec2.InternetGateway('InternetGateway')
+  return ec2.InternetGateway(
+      'InternetGateway',
+      Tags=Tags(
+          {
+              'Name': Sub('${AWS::StackName}:InternetGateway'),
+              'mm:stack': StackName,
+          }))
 
 
 def vpc_gateway_attachment(my_vpc, internet_gateway):
@@ -89,6 +105,11 @@ def ssh_security_group(my_vpc):
           ec2.SecurityGroupRule(
               IpProtocol='tcp', FromPort=22, ToPort=22, CidrIp='0.0.0.0/0'),
       ],
+      Tags=Tags(
+          {
+              'Name': Sub('${AWS::StackName}:SshSecurityGroup'),
+              'mm:stack': StackName,
+          }),
       VpcId=util.name_of(my_vpc))
 
 
@@ -110,11 +131,22 @@ def web_security_group(my_vpc):
               ToPort=443),
       ],
       VpcId=util.name_of(my_vpc),
-      Tags=Tags(Name='WebSecurityGroup'))
+      Tags=Tags(
+          {
+              'Name': Sub('${AWS::StackName}:WebSecurityGroup'),
+              'mm:stack': StackName,
+          }),
+  )
 
 
 def eip(vpc):
-  return ec2.EIP('Eip', Domain=Ref(vpc))
+  return ec2.EIP(
+      'Eip',
+      Domain=Ref(vpc),
+      Tags=Tags({
+          'Name': Sub('${AWS::StackName}:Eip'),
+          'mm:stack': StackName,
+      }))
 
 
 class Template(string.Template):
@@ -507,4 +539,13 @@ def launch_template(
           domain=domain,
           file_bucket=file_bucket,
           mail_access_key=mail_access_key,
-          email=email))
+          email=email),
+      TagSpecifications=[
+          ec2.TagSpecifications(
+              ResourceType='launch-template',
+              Tags=Tags(
+                  {
+                      'Name': Sub('${AWS::StackName}:LaunchTemplate'),
+                      'mm:stack': StackName,
+                  })),
+      ])

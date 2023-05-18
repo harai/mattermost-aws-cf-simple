@@ -1,4 +1,4 @@
-from troposphere import GetAtt, Sub, cloudfront
+from troposphere import GetAtt, StackName, Sub, Tags, cloudfront
 
 from mattermost.common import util
 
@@ -49,4 +49,7 @@ def distribution(
           ViewerCertificate=cloudfront.ViewerCertificate(
               AcmCertificateArn=util.read_param(cloudfront_certificate_arn),
               MinimumProtocolVersion='TLSv1.2_2021',
-              SslSupportMethod='sni-only')))
+              SslSupportMethod='sni-only')),
+      Tags=Tags({
+          'mm:stack': StackName,
+      }))

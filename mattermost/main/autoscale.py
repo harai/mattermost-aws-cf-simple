@@ -1,4 +1,4 @@
-from troposphere import GetAtt, Sub, autoscaling
+from troposphere import GetAtt, StackName, Sub, autoscaling
 from troposphere.policies import (
     AutoScalingCreationPolicy,
     AutoScalingRollingUpdate,
@@ -40,7 +40,11 @@ def auto_scaling_group(
               ],
               TopicARN=util.arn_of(notification_topic)),
       ],
-      Tags=autoscaling.Tags(Name=Sub('${AWS::StackName}:AutoScalingGroup')),
+      Tags=autoscaling.Tags(
+          **{
+              'Name': Sub('${AWS::StackName}:AutoScalingGroup'),
+              'mm:stack': StackName,
+          }),
       VPCZoneIdentifier=[util.name_of(subnet)],
       CreationPolicy=CreationPolicy(
           ResourceSignal=ResourceSignal(Timeout='PT30M', Count=1),
