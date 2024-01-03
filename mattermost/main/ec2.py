@@ -462,6 +462,8 @@ def ec2_metadata(
           services={
               'systemd': cloudformation.InitServices(
                   {
+                      'crond.service': cloudformation.InitService(
+                          enabled=False, ensureRunning=True),
                       'mattermost.service': cloudformation.InitService(
                           enabled=False, ensureRunning=True),
                       'nginx.service': cloudformation.InitService(

@@ -56,12 +56,12 @@ metrics+=("$(stack_metric DBDiskUsage "$db_disk_usage" Percent)")
 config_disk_usage="$(df -h | awk -v d="$config_device" '($1==d){print $5+0}')"
 metrics+=("$(stack_metric ConfigDiskUsage "$config_disk_usage" Percent)")
 
-web_health="$(curl -i -f -H "Authorization: Bearer $(< /var/mattermost/ping-token)" "https://$domain/api/v4/ping" | head -1)"
-if [[ "$web_health" == *'200'* ]]; then
-  metrics+=("$(stack_metric HealthyHostCount 1 Count)")
-else
-  metrics+=("$(stack_metric HealthyHostCount 0 Count)")
-fi
+# web_health="$(curl -i -f -H "Authorization: Bearer $(< /var/mattermost/ping-token)" "https://$domain/api/v4/ping" | head -1)"
+# if [[ "$web_health" == *'200'* ]]; then
+#   metrics+=("$(stack_metric HealthyHostCount 1 Count)")
+# else
+#   metrics+=("$(stack_metric HealthyHostCount 0 Count)")
+# fi
 
 /usr/bin/aws --region "$region" cloudwatch put-metric-data \
   --namespace "$stack" \

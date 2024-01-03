@@ -11,8 +11,6 @@ def file_bucket():
                   Transitions=[
                       s3.LifecycleRuleTransition(
                           StorageClass='STANDARD_IA', TransitionInDays=30),
-                      s3.LifecycleRuleTransition(
-                          StorageClass='GLACIER_IR', TransitionInDays=90),
                   ]),
           ]))
 

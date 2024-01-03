@@ -58,7 +58,7 @@ phases:
     inputs:
       commands:
       - dnf install --nogpgcheck -y community-mysql-server
-      - dnf install -y amazon-cloudwatch-agent mlocate nginx
+      - dnf install -y amazon-cloudwatch-agent mlocate nginx cronie
   - name: InstallCertbot
     action: ExecuteBash
     inputs:
@@ -81,3 +81,9 @@ phases:
       - tar xvzf mattermost-linux-amd64.tar.gz
       - mv mattermost /opt
       - rm mattermost-linux-amd64.tar.gz
+  # https://github.com/amazonlinux/amazon-linux-2023/issues/300
+  - name: NeverRemoveCron
+    action: ExecuteBash
+    inputs:
+      commands:
+      - rm /tmp/imagebuilder_service/crontab_installed
